@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
   output   = "../src/generated/prisma"
@@ -14,13 +8,24 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ==========================================
+// MODELOS DE AUTENTICACIÓN (NextAuth)
+// ==========================================
+
 model User {
   id           String    @id @default(cuid())
   name         String?
   email        String?   @unique
   image        String?
+  role         UserRole  @default(ASESOR)
+  
+  // NextAuth relations
   accounts     Account[]
   sessions     Session[]
+  
+  // Business relations
+  policies     Policy[]
+  
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   passwordHash String?
@@ -52,4 +57,95 @@ model Session {
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ==========================================
+// MODELOS DE NEGOCIO (SEGUROS)
+// ==========================================
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  ASESOR
+}
+
+// Modelo de Cliente
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String?
+  address   String?
+  dni       String?  @unique
+  birthDate DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relaciones
+  policies  Policy[]
+}
+
+// Modelo de Póliza
+model Policy {
+  id              String        @id @default(cuid())
+  policyNumber    String        @unique
+  type            InsuranceType
+  premium         Float         // Prima mensual/anual
+  coverage        Float         // Cobertura total
+  commission      Float?        // Comisión del asesor
+  startDate       DateTime
+  endDate         DateTime
+  status          PolicyStatus  @default(ACTIVE)
+  paymentFrequency PaymentFreq  @default(MONTHLY)
+  
+  // Relaciones
+  clientId        String
+  client          Client        @relation(fields: [clientId], references: [id])
+  advisorId       String
+  advisor         User          @relation(fields: [advisorId], references: [id])
+  
+  // Metadatos
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+}
+
+enum InsuranceType {
+  AUTO
+  HOGAR
+  VIDA
+  SALUD
+  COMERCIAL
+  MOTO
+  VIAJE
+}
+
+enum PolicyStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING
+}
+
+enum PaymentFreq {
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+// Modelo para Métricas Mensuales (para el dashboard)
+model MonthlyMetrics {
+  id              String   @id @default(cuid())
+  year            Int
+  month           Int
+  totalPolicies   Int
+  totalPremium    Float
+  newClients      Int
+  renewals        Int
+  cancellations   Int
+  advisorId       String?
+  
+  createdAt       DateTime @default(now())
+  
+  @@unique([year, month, advisorId])
 }
